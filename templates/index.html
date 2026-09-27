@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>GRU + XAI · Sesi Input Jawaban Interaktif</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117;
+  --bg-panel: #12141c;
+  --bg-card: #171a24;
+  --border: #262a38;
+  --text: #e6e8ef;
+  --text-dim: #9297a8;
+  --text-faint: #5c6273;
+  --violet: #8b7bf0;
+  --cyan: #5ad1e6;
+  --amber: #f0b45a;
+  --coral: #f0708a;
+  --mono: 'JetBrains Mono', ui-monospace, monospace;
+  --sans: 'Inter', system-ui, sans-serif;
+  --display: 'Space Grotesk', var(--sans);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+.spectrum-bar {
+  height: 4px; width: 100%;
+  background: linear-gradient(90deg, var(--violet), var(--cyan), var(--amber), var(--coral));
+}
+.wrap { max-width: 880px; margin: 0 auto; padding: 48px 24px 100px 24px; }
+
+.top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark { display: inline-flex; gap: 4px; }
+.brand-mark span { width: 8px; height: 8px; border-radius: 50%; }
+.brand-mark span:nth-child(1) { background: var(--violet); }
+.brand-mark span:nth-child(2) { background: var(--cyan); }
+.brand-mark span:nth-child(3) { background: var(--amber); }
+.brand-mark span:nth-child(4) { background: var(--coral); }
+.brand h1 { font-family: var(--display); font-size: 17px; font-weight: 600; margin: 0; }
+
+.status-pill {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 20px; padding: 5px 12px;
+}
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-faint); }
+.status-dot.ok { background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
+.status-dot.err { background: var(--coral); box-shadow: 0 0 8px var(--coral); }
+
+.subtitle { color: var(--text-faint); font-size: 13.5px; margin: 6px 0 36px 0; }
+
+.card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 22px 24px; margin-bottom: 20px;
+}
+.card h2 {
+  font-family: var(--display); font-size: 14px; font-weight: 600; margin: 0 0 14px 0;
+  color: var(--text-dim); text-transform: none;
+}
+
+textarea {
+  width: 100%; min-height: 92px; resize: vertical;
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-family: var(--sans); font-size: 14.5px; padding: 12px 14px;
+  outline: none; transition: border-color 0.15s;
+}
+textarea:focus { border-color: var(--violet); }
+textarea::placeholder { color: var(--text-faint); }
+
+.row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+.hint { font-size: 12px; color: var(--text-faint); }
+
+button {
+  font-family: var(--sans); font-size: 13.5px; font-weight: 500; cursor: pointer;
+  border-radius: 8px; padding: 9px 18px; border: 1px solid transparent; transition: 0.15s;
+}
+.btn-primary { background: var(--violet); color: #0d1117; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--text-dim); border-color: var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--text-faint); }
+.btn-danger { background: transparent; color: var(--coral); border-color: rgba(240,112,138,0.4); }
+.btn-danger:hover { background: rgba(240,112,138,0.08); }
+.btn-small { padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+
+.result { display: none; }
+.result.show { display: block; }
+.result-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 12.5px; font-weight: 600;
+  padding: 4px 12px; border-radius: 20px; color: #0d1117;
+}
+.result-text { font-size: 14px; color: var(--text-dim); margin-bottom: 16px; }
+.result-text span { color: var(--text); }
+
+.prob-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.prob-label { width: 130px; font-size: 12.5px; color: var(--text-dim); flex-shrink: 0; }
+.prob-track { flex: 1; height: 8px; background: var(--bg-panel); border-radius: 4px; overflow: hidden; }
+.prob-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+.prob-val { width: 48px; text-align: right; font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
+
+.history-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.search-box {
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 13px; padding: 7px 12px; width: 220px; outline: none;
+}
+.actions { display: flex; gap: 8px; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+th { text-align: left; color: var(--text-faint); font-weight: 500; font-size: 11.5px;
+     text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-dim); }
+td.jawaban-cell { color: var(--text); max-width: 320px; }
+td.id-cell { font-family: var(--mono); color: var(--text-faint); width: 36px; }
+.mini-pill { display: inline-block; padding: 2px 9px; border-radius: 12px; font-size: 11px; font-weight: 600; color: #0d1117; }
+.empty-row td { text-align: center; color: var(--text-faint); padding: 28px; }
+
+.explain-row td { background: var(--bg-panel); }
+.explain-loading { font-family: var(--mono); font-size: 12px; color: var(--text-faint); }
+.explain-bar-row { display: flex; align-items: center; gap: 10px; margin: 4px 0; }
+.explain-token { width: 110px; font-family: var(--mono); font-size: 12px; color: var(--text); flex-shrink: 0;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.explain-track { flex: 1; height: 14px; background: var(--bg-card); border-radius: 3px; position: relative; overflow: hidden; }
+.explain-fill { position: absolute; top: 0; bottom: 0; }
+.explain-fill.pos { background: var(--cyan); left: 50%; }
+.explain-fill.neg { background: var(--coral); right: 50%; }
+.explain-midline { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border); }
+
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+  padding: 10px 18px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="spectrum-bar"></div>
+<div class="wrap">
+
+  <div class="top">
+    <div class="brand">
+      <div class="brand-mark"><span></span><span></span><span></span><span></span></div>
+      <h1>GRU + XAI Classifier</h1>
+    </div>
+    <div class="status-pill"><span class="status-dot" id="statusDot"></span><span id="statusText">Menghubungkan...</span></div>
+  </div>
+  <div class="subtitle">Sesi input jawaban interaktif — prediksi dijalankan oleh model terlatih yang sesungguhnya (bukan simulasi).</div>
+
+  <div class="card">
+    <h2>Jawaban siswa</h2>
+    <textarea id="jawabanInput" placeholder="Contoh: Cermin datar menghasilkan bayangan maya, tegak, dan sama besar dengan bendanya..."></textarea>
+    <div class="row">
+      <span class="hint">Ctrl/Cmd + Enter untuk kirim</span>
+      <button class="btn-primary" id="submitBtn" onclick="submitJawaban()">Kirim Jawaban</button>
+    </div>
+  </div>
+
+  <div class="card result" id="resultCard">
+    <div class="result-top">
+      <span class="pill" id="resultPill">—</span>
+      <span class="hint" id="resultId"></span>
+    </div>
+    <div class="result-text">Jawaban: <span id="resultText"></span></div>
+    <div id="probBars"></div>
+  </div>
+
+  <div class="card">
+    <div class="history-head">
+      <h2 style="margin:0;">Riwayat jawaban</h2>
+      <div class="actions">
+        <input class="search-box" id="searchBox" placeholder="Cari jawaban..." oninput="debouncedLoadHistory()"/>
+        <button class="btn-ghost btn-small" onclick="exportCsv()">Ekspor CSV</button>
+        <button class="btn-danger btn-small" onclick="clearHistory()">Hapus Riwayat</button>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr><th class="id-cell">ID</th><th>Jawaban</th><th>Prediksi</th><th>Keyakinan</th><th>Aksi</th></tr>
+      </thead>
+      <tbody id="historyBody">
+        <tr class="empty-row"><td colspan="5">Belum ada jawaban. Kirim jawaban pertama di atas.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+let debounceTimer = null;
+let labelColors = {};
+function debouncedLoadHistory() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(loadHistory, 250);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+async function checkStatus() {
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    labelColors = d.colors || {};
+    dot.className = 'status-dot ok';
+    text.textContent = 'Model siap' + (d.shap_ready ? '' : ' (SHAP nonaktif)');
+  } catch (e) {
+    dot.className = 'status-dot err';
+    text.textContent = 'Backend tidak terhubung';
+  }
+}
+
+async function submitJawaban() {
+  const input = document.getElementById('jawabanInput');
+  const btn = document.getElementById('submitBtn');
+  const text = input.value.trim();
+  if (!text) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+  try {
+    const r = await fetch('/api/predict', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jawaban: text }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      showToast(d.error || 'Terjadi kesalahan.');
+      return;
+    }
+    renderResult(d);
+    input.value = '';
+    loadHistory();
+  } catch (e) {
+    showToast('Tidak dapat terhubung ke server.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Kirim Jawaban';
+  }
+}
+
+document.getElementById('jawabanInput').addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submitJawaban();
+});
+
+function renderResult(d) {
+  const card = document.getElementById('resultCard');
+  card.classList.add('show');
+  const pill = document.getElementById('resultPill');
+  pill.textContent = `${d.prediksi} · ${(d.keyakinan * 100).toFixed(1)}%`;
+  pill.style.background = d.color;
+  document.getElementById('resultId').textContent = `Jawaban #${d.id}`;
+  document.getElementById('resultText').textContent = `"${d.jawaban}"`;
+
+  const bars = document.getElementById('probBars');
+  bars.innerHTML = '';
+  const entries = Object.entries(d.probs).sort((a, b) => b[1] - a[1]);
+  for (const [label, val] of entries) {
+    const pct = (val * 100).toFixed(1);
+    const color = labelColors[label] || '#9297a8';
+    const row = document.createElement('div');
+    row.className = 'prob-row';
+    row.innerHTML = `
+      <span class="prob-label">${label}</span>
+      <div class="prob-track"><div class="prob-fill" style="width:${pct}%; background:${color}"></div></div>
+      <span class="prob-val">${pct}%</span>`;
+    bars.appendChild(row);
+  }
+}
+
+async function loadHistory() {
+  const search = document.getElementById('searchBox').value.trim();
+  const url = '/api/history?limit=none' + (search ? '&search=' + encodeURIComponent(search) : '');
+  const r = await fetch(url);
+  const rows = await r.json();
+  const body = document.getElementById('historyBody');
+  body.innerHTML = '';
+  if (rows.length === 0) {
+    body.innerHTML = '<tr class="empty-row"><td colspan="5">Tidak ada jawaban yang cocok.</td></tr>';
+    return;
+  }
+  for (const row of rows) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="id-cell">#${row.id}</td>
+      <td class="jawaban-cell">${escapeHtml(row.jawaban)}</td>
+      <td><span class="mini-pill" style="background:${row.color}">${row.prediksi}</span></td>
+      <td>${(row.keyakinan * 100).toFixed(1)}%</td>
+      <td><button class="btn-ghost btn-small" onclick="toggleExplain(${row.id}, this)">Jelaskan</button></td>`;
+    body.appendChild(tr);
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function toggleExplain(id, btn) {
+  const tr = btn.closest('tr');
+  const existing = tr.nextElementSibling;
+  if (existing && existing.classList.contains('explain-row') && existing.dataset.forId == id) {
+    existing.remove();
+    return;
+  }
+  document.querySelectorAll('.explain-row').forEach(el => el.remove());
+
+  const row = document.createElement('tr');
+  row.className = 'explain-row';
+  row.dataset.forId = id;
+  row.innerHTML = `<td colspan="5"><div class="explain-loading">Menghitung kontribusi kata (SHAP)... bisa memakan waktu beberapa detik.</div></td>`;
+  tr.after(row);
+
+  try {
+    const r = await fetch('/api/explain', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      row.innerHTML = `<td colspan="5"><div class="explain-loading">${escapeHtml(d.error || 'Gagal menghitung penjelasan.')}</div></td>`;
+      return;
+    }
+    renderExplain(row, d);
+  } catch (e) {
+    row.innerHTML = `<td colspan="5"><div class="explain-loading">Tidak dapat terhubung ke server.</div></td>`;
+  }
+}
+
+function renderExplain(row, d) {
+  const top = d.contributions.slice(0, 15);
+  const maxAbs = Math.max(...top.map(c => Math.abs(c.value)), 1e-9);
+  let html = `<td colspan="5"><div style="font-size:12px; color: var(--text-faint); margin-bottom:10px;">
+    Kontribusi kata terhadap prediksi "<span style="color:var(--text)">${d.prediksi}</span>" — biru mendukung, merah muda melawan.</div>`;
+  for (const c of top) {
+    const pct = (Math.abs(c.value) / maxAbs) * 50;
+    const cls = c.value >= 0 ? 'pos' : 'neg';
+    html += `<div class="explain-bar-row">
+      <span class="explain-token">${escapeHtml(c.token)}</span>
+      <div class="explain-track"><div class="explain-midline"></div><div class="explain-fill ${cls}" style="width:${pct}%"></div></div>
+    </div>`;
+  }
+  html += '</td>';
+  row.innerHTML = html;
+}
+
+async function exportCsv() {
+  window.location.href = '/api/history/export';
+}
+
+async function clearHistory() {
+  if (!confirm('Hapus seluruh riwayat jawaban? Tindakan ini tidak bisa dibatalkan.')) return;
+  await fetch('/api/history/clear', { method: 'POST' });
+  document.getElementById('resultCard').classList.remove('show');
+  loadHistory();
+  showToast('Riwayat dihapus.');
+}
+
+checkStatus();
+loadHistory();
+</script>
+</body>
+</html>
