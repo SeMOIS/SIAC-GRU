@@ -337,4 +337,4 @@ def api_explain():
 
 if __name__ == "__main__":
     # debug=False supaya model tidak dimuat dua kali oleh auto-reloader Flask.
-    app.run(debug=False, port=5000)
+    import os app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
